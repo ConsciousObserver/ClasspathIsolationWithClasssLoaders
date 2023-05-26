@@ -1,8 +1,6 @@
 package com.example.classpath.in;
 
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -10,20 +8,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Loads a Jar into a ClassLoader which is child of bootstrap ClassLoader. This
+ * means that Jar's ClassLoader cannot see classes from current class path,
+ * other than classes from JRE itself and cannot have a conflict with classes
+ * from current class path.
+ * 
+ */
 public class ClasspathIsolationUtil {
-
-    private static final Set<String> COMMON_QUALIFIED_CLASS_NAMES = Set.of("com.example.classpath.common.ISpringUtil");
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private ClassLoader jarClassLoader;
+    private final ClassLoader jarClassLoader;
 
-    private Map<String, Class<?>> classByClassName = new ConcurrentHashMap<>();
+    private final Map<String, Class<?>> classByClassName = new ConcurrentHashMap<>();
 
-    public ClasspathIsolationUtil(String jarLocation) {
+    /**
+     * Only these classes are loaded from in-classpath class loader, all other
+     * classes are loaded from Jar' ClassLoader. Bundling these classes with the
+     * Jar will have no effect as they'll never be loaded.
+     */
+    private final Set<String> sharedCommonQualifiedClassNames;
+
+    public ClasspathIsolationUtil(String jarLocation, Set<String> sharedCommonQualifiedClassNames) {
+        this.sharedCommonQualifiedClassNames = sharedCommonQualifiedClassNames;
         try {
             File jarFile = new File(jarLocation);
 
@@ -33,14 +43,32 @@ public class ClasspathIsolationUtil {
 
             URL jarUrl = jarFile.toURI().toURL();
 
-            System.out.println("jar URL::: " + jarUrl);
+            logger.info("jar URL::: " + jarUrl);
 
             jarClassLoader = getJarClassLoader(jarUrl);
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
 
-        System.out.println("Loaded jarClassLoader: " + jarClassLoader);
+        logger.info("Loaded jarClassLoader: " + jarClassLoader);
+    }
+
+    /**
+     * Returns instance of given class, by invoking it's constructor matching to
+     * the provided constructor arguments.
+     * 
+     * @param qualifiedClassName
+     * @param constructorArgumentTypes
+     * @param constructorArguments
+     * @return
+     */
+    public Object getObjectFromIsolatedClass(String qualifiedClassName, Class<Object>[] constructorArgumentTypes,
+            Object[] constructorArguments) {
+        return runWithIsolatedClassLoaders(() -> {
+            Class<?> klass = getClassFromIsolatedJar(qualifiedClassName);
+
+            return klass.getConstructor(constructorArgumentTypes).newInstance(constructorArguments);
+        });
     }
 
     /**
@@ -48,32 +76,38 @@ public class ClasspathIsolationUtil {
      * means that this ClassLoader has only it's own classes and JRE classes on
      * it's class path.
      * 
+     * <p>
+     * It loads some classes specified in
+     * {@link #sharedCommonQualifiedClassNames} from current class loader.
+     * 
      * @param jarUrl
      * @return
      */
     private synchronized ClassLoader getJarClassLoader(URL jarUrl) {
 
-        if (jarClassLoader == null) {
-            jarClassLoader = new URLClassLoader(new URL[] { jarUrl },
-                    ClassLoader.getSystemClassLoader().getParent()) {
-                @Override
-                public Class<?> loadClass(String qualifiedClassName) throws ClassNotFoundException {
-                    Class<?> klass = null;
+        return new URLClassLoader(new URL[] { jarUrl },
+                ClassLoader.getSystemClassLoader().getParent()) {
+            @Override
+            public Class<?> loadClass(String qualifiedClassName) throws ClassNotFoundException {
+                Class<?> klass = null;
 
-                    if (COMMON_QUALIFIED_CLASS_NAMES.contains(qualifiedClassName)) {
-                        klass = this.getClass().getClassLoader().loadClass(qualifiedClassName);
-                    } else {
-                        klass = super.loadClass(qualifiedClassName);
-                    }
-
-                    return klass;
+                if (sharedCommonQualifiedClassNames.contains(qualifiedClassName)) {
+                    klass = this.getClass().getClassLoader().loadClass(qualifiedClassName);
+                } else {
+                    klass = super.loadClass(qualifiedClassName);
                 }
-            };
-        }
 
-        return jarClassLoader;
+                return klass;
+            }
+        };
     }
 
+    /**
+     * loads and returns the Class<?> instance of requested class.
+     * 
+     * @param qualifiedClassName
+     * @return
+     */
     private synchronized Class<?> getClassFromIsolatedJar(String qualifiedClassName) {
 
         classByClassName.putIfAbsent(qualifiedClassName,
@@ -94,17 +128,8 @@ public class ClasspathIsolationUtil {
         return classByClassName.get(qualifiedClassName);
     }
 
-    public Object getObjectFromIsolatedClass(String qualifiedClassName, Class<Object>[] constructorArgumentTypes,
-            Object[] constructorArguments) {
-        return runWithIsolatedClassLoaders(() -> {
-            Class<?> klass = getClassFromIsolatedJar(qualifiedClassName);
-
-            return klass.getConstructor(constructorArgumentTypes).newInstance(constructorArguments);
-        });
-    }
-
     /**
-     * Changes current thread's Context ClassLoader to {{@link #jarClassLoader}
+     * Changes current thread's Context ClassLoader to {@link #jarClassLoader}
      * before running the {@link Callable} argument
      * 
      * @param <T>
@@ -122,30 +147,5 @@ public class ClasspathIsolationUtil {
         } finally {
             Thread.currentThread().setContextClassLoader(originalClassLoader);
         }
-    }
-
-    public Object invokeMethod(Object object, String methodName, Class<?>[] parameterTypes,
-            Object[] args) {
-        return runWithIsolatedClassLoaders(() -> {
-            Object result = null;
-            try {
-                Method method = object.getClass().getMethod(methodName, parameterTypes);
-
-                if (method.getReturnType().equals(Void.TYPE)) {
-                    result = null;
-                    method.invoke(object, args);
-                } else {
-                    result = method.invoke(object, args);
-                }
-            } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException
-                    | InvocationTargetException e) {
-
-                logger.log(Level.SEVERE, "Error running method " + methodName);
-
-                throw new RuntimeException(e);
-            }
-
-            return result;
-        });
     }
 }

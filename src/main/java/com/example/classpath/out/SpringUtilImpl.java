@@ -6,6 +6,14 @@ import com.example.classpath.common.ISpringUtil;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Implements {@link ISpringUtil}.
+ * 
+ * <p>
+ * {@link ISpringUtil} is not bundled with this class into classpath-out Jar
+ * file.
+ *
+ */
 @Slf4j
 public class SpringUtilImpl implements ISpringUtil {
 
