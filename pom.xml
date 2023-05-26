@@ -71,8 +71,8 @@
 							<filters>
 								<filter>
 									<includes>
-										<include>
-											com/example/classpath/in/**</include>
+										<include>com/example/classpath/in/**</include>
+										<include>com/example/classpath/common/**</include>
 									</includes>
 								</filter>
 							</filters>
@@ -90,8 +90,8 @@
 							<filters>
 								<filter>
 									<excludes>
-										<exclude>
-											com/example/classpath/in/**</exclude>
+										<exclude>com/example/classpath/in/**</exclude>
+										<exclude>com/example/classpath/common/**</exclude>
 									</excludes>
 								</filter>
 							</filters>

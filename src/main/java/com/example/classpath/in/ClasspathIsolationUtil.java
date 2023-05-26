@@ -7,12 +7,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ClasspathIsolationUtil {
+
+    private static final Set<String> COMMON_QUALIFIED_CLASS_NAMES = Set.of("com.example.classpath.common.ISpringUtil");
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
@@ -39,7 +42,7 @@ public class ClasspathIsolationUtil {
 
         System.out.println("Loaded jarClassLoader: " + jarClassLoader);
     }
-    
+
     /**
      * Loads JAR into a ClassLoader that's child of bootstrap ClassLoader. This
      * means that this ClassLoader has only it's own classes and JRE classes on
@@ -52,7 +55,20 @@ public class ClasspathIsolationUtil {
 
         if (jarClassLoader == null) {
             jarClassLoader = new URLClassLoader(new URL[] { jarUrl },
-                    ClassLoader.getSystemClassLoader().getParent());
+                    ClassLoader.getSystemClassLoader().getParent()) {
+                @Override
+                public Class<?> loadClass(String qualifiedClassName) throws ClassNotFoundException {
+                    Class<?> klass = null;
+
+                    if (COMMON_QUALIFIED_CLASS_NAMES.contains(qualifiedClassName)) {
+                        klass = this.getClass().getClassLoader().loadClass(qualifiedClassName);
+                    } else {
+                        klass = super.loadClass(qualifiedClassName);
+                    }
+
+                    return klass;
+                }
+            };
         }
 
         return jarClassLoader;
