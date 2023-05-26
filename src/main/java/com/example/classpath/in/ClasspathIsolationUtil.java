@@ -43,7 +43,19 @@ public class ClasspathIsolationUtil {
     private synchronized Class<?> getClassFromIsolatedJar(String qualifiedClassName) {
 
         classByClassName.putIfAbsent(qualifiedClassName,
-                runWithIsolatedClassLoaders(() -> jarClassLoader.loadClass(qualifiedClassName)));
+                runWithIsolatedClassLoaders(() -> {
+
+                    Class<?> klass = null;
+
+                    //prioritizing jarClassloader
+                    if (null != jarClassLoader.getResource(qualifiedClassName.replace('.', '/') + ".class")) {
+                        klass = jarClassLoader.loadClass(qualifiedClassName);
+                    } else {
+                        klass = jarClassLoader.getParent().loadClass(qualifiedClassName);
+                    }
+
+                    return klass;
+                }));
 
         return classByClassName.get(qualifiedClassName);
     }
