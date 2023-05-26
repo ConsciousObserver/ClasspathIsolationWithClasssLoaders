@@ -85,8 +85,10 @@ public class ClasspathIsolationUtil {
      */
     private synchronized ClassLoader getJarClassLoader(URL jarUrl) {
 
+        ClassLoader bootstrapClassLoader = ClassLoader.getSystemClassLoader().getParent();
+        
         return new URLClassLoader(new URL[] { jarUrl },
-                ClassLoader.getSystemClassLoader().getParent()) {
+                bootstrapClassLoader) {
             @Override
             public Class<?> loadClass(String qualifiedClassName) throws ClassNotFoundException {
                 Class<?> klass = null;
