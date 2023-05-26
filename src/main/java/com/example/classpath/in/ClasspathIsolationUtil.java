@@ -39,6 +39,24 @@ public class ClasspathIsolationUtil {
 
         System.out.println("Loaded jarClassLoader: " + jarClassLoader);
     }
+    
+    /**
+     * Loads JAR into a ClassLoader that's child of bootstrap ClassLoader. This
+     * means that this ClassLoader has only it's own classes and JRE classes on
+     * it's class path.
+     * 
+     * @param jarUrl
+     * @return
+     */
+    private synchronized ClassLoader getJarClassLoader(URL jarUrl) {
+
+        if (jarClassLoader == null) {
+            jarClassLoader = new URLClassLoader(new URL[] { jarUrl },
+                    ClassLoader.getSystemClassLoader().getParent());
+        }
+
+        return jarClassLoader;
+    }
 
     private synchronized Class<?> getClassFromIsolatedJar(String qualifiedClassName) {
 
@@ -88,22 +106,6 @@ public class ClasspathIsolationUtil {
         } finally {
             Thread.currentThread().setContextClassLoader(originalClassLoader);
         }
-    }
-
-    /**
-     * Loads JAR into a ClassLoader that's child of bootstrap ClassLoader
-     * 
-     * @param jarUrl
-     * @return
-     */
-    private synchronized ClassLoader getJarClassLoader(URL jarUrl) {
-
-        if (jarClassLoader == null) {
-            jarClassLoader = new URLClassLoader(new URL[] { jarUrl },
-                    ClassLoader.getSystemClassLoader().getParent());
-        }
-
-        return jarClassLoader;
     }
 
     public Object invokeMethod(Object object, String methodName, Class<?>[] parameterTypes,
