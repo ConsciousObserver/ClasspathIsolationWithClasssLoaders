@@ -70,6 +70,27 @@ public class ClasspathIsolationUtil {
             return klass.getConstructor(constructorArgumentTypes).newInstance(constructorArguments);
         });
     }
+    
+    /**
+     * Changes current thread's Context ClassLoader to {@link #jarClassLoader}
+     * before running the {@link Callable} argument
+     * 
+     * @param <T>
+     * @param callable
+     * @return
+     */
+    public <T> T runWithIsolatedClassLoaders(Callable<T> callable) {
+        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+
+        try {
+            Thread.currentThread().setContextClassLoader(jarClassLoader);
+            return callable.call();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalClassLoader);
+        }
+    }
 
     /**
      * Loads JAR into a ClassLoader that's child of bootstrap ClassLoader. This
@@ -128,26 +149,5 @@ public class ClasspathIsolationUtil {
                 }));
 
         return classByClassName.get(qualifiedClassName);
-    }
-
-    /**
-     * Changes current thread's Context ClassLoader to {@link #jarClassLoader}
-     * before running the {@link Callable} argument
-     * 
-     * @param <T>
-     * @param callable
-     * @return
-     */
-    private <T> T runWithIsolatedClassLoaders(Callable<T> callable) {
-        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
-
-        try {
-            Thread.currentThread().setContextClassLoader(jarClassLoader);
-            return callable.call();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            Thread.currentThread().setContextClassLoader(originalClassLoader);
-        }
     }
 }

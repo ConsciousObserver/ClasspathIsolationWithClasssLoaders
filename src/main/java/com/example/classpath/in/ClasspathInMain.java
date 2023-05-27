@@ -21,6 +21,10 @@ public class ClasspathInMain {
                 new Class[0],
                 new Object[] {});
 
-        springUtil.callUrl("https://google.com");
+        classpathIsolationUtil.runWithIsolatedClassLoaders(() -> {
+            springUtil.callUrl("https://google.com");
+
+            return "success";
+        });
     }
 }
